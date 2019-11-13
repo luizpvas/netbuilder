@@ -1,0 +1,180 @@
+/* Top-level editor */
+
+.editor {
+  width: 100%;
+}
+
+/* Container's placeholder */
+
+.container-placeholder {
+  width: 100%;
+  background: #f7fafc;
+  border: 2px solid #cbd5e0;
+  border-style: dashed;
+  border-radius: 0.25rem;
+  padding: 1rem;
+}
+
+.container-layouts {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+}
+.container-layouts:first-of-type {
+  margin-top: 0;
+}
+
+.container-layout-item {
+  box-sizing: border-box;
+  width: 6rem;
+  height: 3rem;
+  display: flex;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+.container-layout-item:hover {
+  border: 0.25rem solid #90cdf4;
+}
+
+.container-layout-column {
+  background: #cbd5e0;
+  margin-right: 0.25rem;
+}
+.container-layout-column:last-of-type {
+  margin-right: 0;
+}
+
+/* Container menu */
+
+.container-menu {
+}
+
+.container-menu-options {
+  position: absolute;
+  z-index: 10;
+  width: 150px;
+  top: 20px;
+  right: 0;
+  display: none;
+  background: #fff;
+  padding: 5px;
+  border-radius: 5px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+.container-menu-options.open {
+  display: block;
+}
+
+.container-menu-trigger {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.container-menu-option {
+  cursor: pointer;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #4a5568;
+}
+.container-menu-option:hover {
+  background: #e6fffa;
+}
+.container-menu-option:hover svg {
+  fill: #4299e1;
+}
+.container-menu-option svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 5px;
+  fill: #a0aec0;
+}
+
+/* Container layouts */
+
+.container {
+  position: relative;
+  display: flex;
+  background: #f7fafc;
+  padding: 8px;
+}
+
+.column-25 {
+  width: 25%;
+}
+
+.column-30 {
+  width: 30%;
+}
+
+.column-33 {
+  width: 33.3333%;
+}
+
+.column-50 {
+  width: 50%;
+}
+
+.column-70 {
+  width: 70%;
+}
+
+.column-100 {
+  width: 100%;
+}
+
+/* Block's placeholder */
+
+.block-layout-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+.block-layout-option-container {
+  cursor: pointer;
+  margin-right: 1rem;
+}
+.block-layout-option-container:hover {
+  transform: scale(1.2);
+}
+
+/* Blocks's content */
+.block-content {
+  position: relative;
+  min-height: 40px;
+}
+
+.block-content:hover .block-content-hover-options {
+  display: flex;
+}
+
+.block-content-hover-options {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: rgba(255, 255, 255, 0.3);
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.block-content-hover-option {
+  background: #fff;
+  padding: 10px;
+  cursor: pointer;
+  fill: #718096;
+  width: 20px;
+  height: 20px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+.block-content-hover-option:hover {
+  fill: #2d3748;
+}
