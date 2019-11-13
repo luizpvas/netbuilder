@@ -17,14 +17,17 @@ suite =
     describe "Youtube spec"
         [ test "validates a url" <|
             \_ ->
-                Expect.true "Short url is valid" (Youtube.isValid "https://www.youtube.com/watch?v=ftXmvnL0ZOc")
+                "https://www.youtube.com/watch?v=ftXmvnL0ZOc"
+                    |> Youtube.isValid
+                    |> Expect.true "Short url is valid"
         , test "validates a url with more params" <|
             \_ ->
-                Expect.true "URL with params is valid" (Youtube.isValid "https://www.youtube.com/watch?v=ftXmvnL0ZOc&list=RDftXmvnL0ZOc&start_radio=1")
+                "https://www.youtube.com/watch?v=ftXmvnL0ZOc&list=RDftXmvnL0ZOc&start_radio=1"
+                    |> Youtube.isValid
+                    |> Expect.true "URL with more params is valid"
         , test "extracts the video id from short url" <|
             \_ ->
-                "https://page.com/foo?search=123"
-                    |> Url.fromString
-                    |> Maybe.map (Url.Parser.parse parser)
-                    |> Expect.equal Nothing
+                "https://www.youtube.com/watch?v=ftXmvnL0ZOc"
+                    |> Youtube.videoId
+                    |> Expect.equal (Just "ftXmvnL0ZOc")
         ]

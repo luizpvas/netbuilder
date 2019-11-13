@@ -23,9 +23,9 @@ parser =
 videoId : String -> Maybe String
 videoId url =
     Url.fromString url
-        |> Debug.log "parsed url"
+        -- https://github.com/elm/url/issues/17
+        |> Maybe.map (\parsed -> { parsed | path = "" })
         |> Maybe.map (Url.Parser.parse parser)
-        |> Debug.log "after reparsing for v"
         |> Maybe.Extra.join
         |> Maybe.Extra.join
 
