@@ -30,4 +30,9 @@ suite =
                 "https://www.youtube.com/watch?v=ftXmvnL0ZOc"
                     |> Youtube.videoId
                     |> Expect.equal (Just "ftXmvnL0ZOc")
+        , test "extracts the video id from a url with more params" <|
+            \_ ->
+                "https://www.youtube.com/watch?v=ftXmvnL0ZOc&list=RDftXmvnL0ZOc&start_radio=1"
+                    |> Youtube.videoId
+                    |> Expect.equal (Just "ftXmvnL0ZOc")
         ]

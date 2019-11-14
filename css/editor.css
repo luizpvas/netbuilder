@@ -47,9 +47,6 @@
 
 /* Container menu */
 
-.container-menu {
-}
-
 .container-menu-options {
   position: absolute;
   z-index: 10;
@@ -145,6 +142,7 @@
 }
 
 /* Blocks's content */
+
 .block-content {
   position: relative;
   min-height: 40px;
@@ -177,4 +175,65 @@
 }
 .block-content-hover-option:hover {
   fill: #2d3748;
+}
+
+/* Editing a block */
+
+.block-editor-panel {
+  border: 1px solid #cbd5e0;
+  border-radius: 3px;
+}
+
+.block-editor-panel-header {
+  padding: 5px 5px 5px 10px;
+  border-bottom: 1px solid #cbd5e0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #edf2f7;
+  color: #2d3748;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.block-editor-panel-body {
+  padding: 10px;
+}
+
+/* Youtube stuff */
+
+.youtube-preview-image-editor-container {
+  margin: 10px 0;
+}
+
+.youtube-preview-image {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  max-height: 200px;
+}
+
+/* Form stuff */
+
+.netbuilder-input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #a0aec0;
+  border-radius: 2px;
+}
+
+.netbuilder-button {
+  border: none;
+  background: #718096;
+  color: #fff;
+  font-weight: bold;
+  padding: 5px 10px;
+  border-radius: 2px;
+  border-bottom: 2px solid #4a5568;
+  cursor: pointer;
+}
+.netbuilder-button:hover {
+  background: #4a5568;
 }

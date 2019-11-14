@@ -15,6 +15,13 @@ class NetBuilderEditor extends HTMLElement {
         flags: null
       });
 
+      // TODO: store and ungister this on disconnectedCallback
+      window.addEventListener("keydown", ev => {
+        if (ev.ctrlKey && ev.keyCode == 90) {
+          app.ports.ctrlZPressed.send(null);
+        }
+      });
+
       app.ports.startMovingContainerDown.subscribe(containerId => {
         requestAnimationFrame(() => {
           let allContainers = Array.from(

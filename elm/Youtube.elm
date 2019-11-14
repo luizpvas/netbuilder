@@ -9,8 +9,8 @@ import Url.Parser.Query
 {-| Checks if the given string is a valid Youtube URL.
 -}
 isValid : String -> Bool
-isValid =
-    String.startsWith "https://www.youtube.com/watch"
+isValid url =
+    Maybe.Extra.isJust (videoId url)
 
 
 parser : Url.Parser.Parser (Maybe String -> a) a
@@ -23,13 +23,20 @@ parser =
 videoId : String -> Maybe String
 videoId url =
     Url.fromString url
-        -- https://github.com/elm/url/issues/17
         |> Maybe.map (\parsed -> { parsed | path = "" })
+        -- https://github.com/elm/url/issues/17
         |> Maybe.map (Url.Parser.parse parser)
         |> Maybe.Extra.join
         |> Maybe.Extra.join
 
 
-thumbnailUrl : String -> String
-thumbnailUrl =
-    String.replace "https://www.youtube.com/watch?v=" ""
+{-| Gets the thumbnail URL for the given video URL.
+-}
+thumbnailUrl : String -> Maybe String
+thumbnailUrl url =
+    case videoId url of
+        Just id ->
+            Just ("https://img.youtube.com/vi/" ++ id ++ "/sddefault.jpg")
+
+        Nothing ->
+            Nothing

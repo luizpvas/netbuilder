@@ -6,6 +6,7 @@ import Browser.Events
 import CodeMirror
 import ContainerId exposing (ContainerId)
 import Data.LandingPage as LandingPage exposing (LandingPage)
+import EditHistory exposing (EditHistory)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
@@ -15,6 +16,7 @@ import Icon
 import Interop
 import Json.Decode as Decode
 import Trix
+import Youtube
 
 
 type alias Flags =
@@ -26,6 +28,7 @@ type alias Model =
     , editingBlock : Maybe BlockId
     , containerMenu : Maybe ContainerId
     , nextId : Int
+    , editHistory : EditHistory
     }
 
 
@@ -40,6 +43,7 @@ init () =
       , editingBlock = Nothing
       , containerMenu = Nothing
       , nextId = 99
+      , editHistory = EditHistory.empty
       }
     , Cmd.none
     )
@@ -51,6 +55,7 @@ init () =
 
 type Msg
     = Ignored
+    | Undo
     | AddContainerAfter ContainerId
     | ChangeContainerLayout ContainerId String
     | ChangeBlockLayout BlockId String
@@ -66,6 +71,7 @@ type Msg
     | RemoveBlock BlockId
     | SetBlockHtmlContent BlockId String
     | SetBlockHtmlCode BlockId String
+    | SetBlockYoutubeUrl BlockId String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -74,25 +80,39 @@ update msg model =
         Ignored ->
             ( model, Cmd.none )
 
+        Undo ->
+            let
+                ( maybeLandingPage, editHistory ) =
+                    EditHistory.pop model.editHistory
+            in
+            case maybeLandingPage of
+                Just landingPage ->
+                    ( { model | landingPage = landingPage, editHistory = editHistory }, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
         AddContainerAfter containerId ->
             let
                 result =
                     LandingPage.addPlaceholderAfter containerId model.nextId model.landingPage
             in
-            ( { model | landingPage = result.landingPage, nextId = result.nextId }, Cmd.none )
+            ( { model | nextId = result.nextId } |> track result.landingPage
+            , Cmd.none
+            )
 
         ChangeContainerLayout containerId layout ->
             let
                 result =
                     LandingPage.changeContainerLayout containerId layout model.nextId model.landingPage
             in
-            ( { model | landingPage = result.landingPage, nextId = result.nextId }, Cmd.none )
+            ( { model | nextId = result.nextId } |> track result.landingPage
+            , Cmd.none
+            )
 
         ChangeBlockLayout blockId layout ->
-            ( { model
-                | landingPage = LandingPage.changeBlockLayout blockId layout model.landingPage
-                , editingBlock = Just blockId
-              }
+            ( { model | editingBlock = Just blockId }
+                |> track (LandingPage.changeBlockLayout blockId layout model.landingPage)
             , Cmd.none
             )
 
@@ -103,10 +123,14 @@ update msg model =
             ( model, Interop.startMovingContainerDown (ContainerId.toString id) )
 
         MoveContainerUp id ->
-            ( { model | landingPage = LandingPage.moveContainerUp id model.landingPage }, Cmd.none )
+            ( model |> track (LandingPage.moveContainerUp id model.landingPage)
+            , Cmd.none
+            )
 
         MoveContainerDown id ->
-            ( { model | landingPage = LandingPage.moveContainerDown id model.landingPage }, Cmd.none )
+            ( model |> track (LandingPage.moveContainerDown id model.landingPage)
+            , Cmd.none
+            )
 
         OpenContainerMenu containerId ->
             ( { model | containerMenu = Just containerId }, Cmd.none )
@@ -115,16 +139,20 @@ update msg model =
             ( { model | containerMenu = Nothing }, Cmd.none )
 
         RemoveContainer id ->
-            ( { model | landingPage = LandingPage.removeContainer id model.landingPage }, Cmd.none )
+            ( model |> track (LandingPage.removeContainer id model.landingPage)
+            , Cmd.none
+            )
 
         StartEditing blockId ->
             ( { model | editingBlock = Just blockId }, Cmd.none )
 
         StopEditing ->
-            ( { model | editingBlock = Nothing }, Cmd.none )
+            ( { model | editingBlock = Nothing } |> track model.landingPage
+            , Cmd.none
+            )
 
         RemoveBlock blockId ->
-            ( { model | landingPage = LandingPage.removeBlock blockId model.landingPage }
+            ( model |> track (LandingPage.removeBlock blockId model.landingPage)
             , Cmd.none
             )
 
@@ -168,6 +196,31 @@ update msg model =
             in
             ( { model | landingPage = nextLandingPage }, Cmd.none )
 
+        SetBlockYoutubeUrl blockId url ->
+            let
+                nextLandingPage =
+                    model.landingPage
+                        |> LandingPage.updateBlock
+                            (\block ->
+                                if block.id == blockId then
+                                    case block.layout of
+                                        LandingPage.YoutubeVideo _ ->
+                                            { block | layout = LandingPage.YoutubeVideo url }
+
+                                        _ ->
+                                            block
+
+                                else
+                                    block
+                            )
+            in
+            ( { model | landingPage = nextLandingPage }, Cmd.none )
+
+
+track : LandingPage -> Model -> Model
+track nextLandingPage model =
+    { model | landingPage = nextLandingPage, editHistory = EditHistory.push model.editHistory model.landingPage }
+
 
 
 -- Subscriptions
@@ -188,6 +241,7 @@ subscriptions model =
         [ mouse
         , Interop.movingDownFinished (ContainerId.fromInt >> MoveContainerDown)
         , Interop.movingUpFinished (ContainerId.fromInt >> MoveContainerUp)
+        , Interop.ctrlZPressed (\_ -> Undo)
         ]
 
 
@@ -307,7 +361,7 @@ viewContainerMenu container containerMenu =
             else
                 "container-menu-options"
     in
-    div [ class "container-menu" ]
+    div []
         [ div [ class "container-menu-trigger", onClick (OpenContainerMenu container.id) ] [ Icon.more ]
         , div [ class className ]
             [ div [ class "container-menu-option", onClick (StartMovingContainerUp container.id) ] [ Icon.arrowUp, text I18n.moveUp ]
@@ -403,19 +457,54 @@ viewBlockEditor block =
             viewBlockPlaceholder block.id
 
         LandingPage.HtmlCode html ->
-            div []
-                [ CodeMirror.editor html (SetBlockHtmlCode block.id)
-                , button [ onClick StopEditing ] [ text "Salvar" ]
+            div [ class "block-editor-panel" ]
+                [ div [ class "block-editor-panel-header" ]
+                    [ text "Editor de HTML"
+                    , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
+                    ]
+                , div [ class "block-editor-panel-body" ]
+                    [ CodeMirror.editor html (SetBlockHtmlCode block.id)
+                    ]
                 ]
 
         LandingPage.HtmlContent html ->
-            div []
-                [ Trix.editor html (SetBlockHtmlContent block.id)
-                , button [ onClick StopEditing ] [ text "Salvar" ]
+            div [ class "block-editor-panel" ]
+                [ div [ class "block-editor-panel-header" ]
+                    [ text "Editor de texto"
+                    , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
+                    ]
+                , div [ class "block-editor-panel-body" ]
+                    [ Trix.editor html (SetBlockHtmlContent block.id)
+                    ]
                 ]
 
         LandingPage.YoutubeVideo url ->
-            div [] [ text "Youtube Video Editor" ]
+            div [ class "block-editor-panel" ]
+                [ div [ class "block-editor-panel-header" ]
+                    [ text "Vídeo do Youtube"
+                    , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
+                    ]
+                , div [ class "block-editor-panel-body" ]
+                    [ label []
+                        [ text "Copie e cole a URL do vídeo:"
+                        , input
+                            [ class "netbuilder-input"
+                            , onInput (SetBlockYoutubeUrl block.id)
+                            , placeholder "https://www.youtube.com/watch?v=..."
+                            , value url
+                            ]
+                            []
+                        ]
+                    , div [ class "youtube-preview-image-editor-container" ]
+                        [ case Youtube.thumbnailUrl url of
+                            Just thumbnailUrl ->
+                                img [ class "youtube-preview-image", src thumbnailUrl ] []
+
+                            Nothing ->
+                                div [] [ text "Invalid URL" ]
+                        ]
+                    ]
+                ]
 
         LandingPage.Image url ->
             div [] [ text "Image" ]
@@ -443,7 +532,18 @@ viewBlock block =
                 ]
 
         LandingPage.YoutubeVideo url ->
-            div [ class "block-content" ] [ text "Youtube Video" ]
+            case Youtube.thumbnailUrl url of
+                Just thumbnailUrl ->
+                    div [ class "block-content" ]
+                        [ viewBlockHoverOptions block.id
+                        , img [ src thumbnailUrl, class "youtube-preview-image" ] []
+                        ]
+
+                Nothing ->
+                    div [ class "block-content" ]
+                        [ viewBlockHoverOptions block.id
+                        , text "URL Inválida."
+                        ]
 
         LandingPage.Image url ->
             div [ class "block-content" ] [ text "Image" ]

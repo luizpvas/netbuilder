@@ -1,4 +1,13 @@
-port module Interop exposing (movingDownFinished, movingUpFinished, startMovingContainerDown, startMovingContainerUp)
+port module Interop exposing (ctrlZPressed, movingDownFinished, movingUpFinished, startMovingContainerDown, startMovingContainerUp)
+
+-- Global shortcuts
+
+
+port ctrlZPressed : (() -> msg) -> Sub msg
+
+
+
+-- Moving animation
 
 
 port startMovingContainerUp : String -> Cmd msg
