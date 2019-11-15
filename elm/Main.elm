@@ -23,24 +23,36 @@ type alias Flags =
     ()
 
 
-type alias Model =
+{-| The editor is a union of the email being created and the block
+being edited. We this both of those as a unit to track the edit history so we can:
+"Click on a block, start editing, save changes" and hit ctrl-z 3 times to reverse
+those changes.
+-}
+type alias Editor =
     { landingPage : LandingPage
     , editingBlock : Maybe BlockId
+    }
+
+
+type alias Model =
+    { editor : Editor
+    , editHistory : EditHistory Editor
     , containerMenu : Maybe ContainerId
     , nextId : Int
-    , editHistory : EditHistory
     }
 
 
 init : Flags -> ( Model, Cmd Msg )
 init () =
-    ( { landingPage =
-            LandingPage.new
-                |> LandingPage.changeContainerLayout (ContainerId.fromInt 1) "SingleColumn" 1
-                |> .landingPage
-                |> LandingPage.addPlaceholderAfter (ContainerId.fromInt 1) 2
-                |> .landingPage
-      , editingBlock = Nothing
+    ( { editor =
+            { landingPage =
+                LandingPage.new
+                    |> LandingPage.changeContainerLayout (ContainerId.fromInt 1) "SingleColumn" 1
+                    |> .landingPage
+                    |> LandingPage.addPlaceholderAfter (ContainerId.fromInt 1) 2
+                    |> .landingPage
+            , editingBlock = Nothing
+            }
       , containerMenu = Nothing
       , nextId = 99
       , editHistory = EditHistory.empty
@@ -82,12 +94,12 @@ update msg model =
 
         Undo ->
             let
-                ( maybeLandingPage, editHistory ) =
+                ( maybeEditor, editHistory ) =
                     EditHistory.pop model.editHistory
             in
-            case maybeLandingPage of
-                Just landingPage ->
-                    ( { model | landingPage = landingPage, editHistory = editHistory }, Cmd.none )
+            case maybeEditor of
+                Just editor ->
+                    ( { model | editor = editor, editHistory = editHistory }, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -95,24 +107,32 @@ update msg model =
         AddContainerAfter containerId ->
             let
                 result =
-                    LandingPage.addPlaceholderAfter containerId model.nextId model.landingPage
+                    LandingPage.addPlaceholderAfter containerId model.nextId model.editor.landingPage
             in
-            ( { model | nextId = result.nextId } |> track result.landingPage
+            ( { model | nextId = result.nextId }
+                |> trackEditor (\editor -> { editor | landingPage = result.landingPage })
             , Cmd.none
             )
 
         ChangeContainerLayout containerId layout ->
             let
                 result =
-                    LandingPage.changeContainerLayout containerId layout model.nextId model.landingPage
+                    LandingPage.changeContainerLayout containerId layout model.nextId model.editor.landingPage
             in
-            ( { model | nextId = result.nextId } |> track result.landingPage
+            ( { model | nextId = result.nextId }
+                |> trackEditor (\editor -> { editor | landingPage = result.landingPage })
             , Cmd.none
             )
 
         ChangeBlockLayout blockId layout ->
-            ( { model | editingBlock = Just blockId }
-                |> track (LandingPage.changeBlockLayout blockId layout model.landingPage)
+            ( model
+                |> trackEditor
+                    (\editor ->
+                        { editor
+                            | editingBlock = Just blockId
+                            , landingPage = LandingPage.changeBlockLayout blockId layout model.editor.landingPage
+                        }
+                    )
             , Cmd.none
             )
 
@@ -123,12 +143,13 @@ update msg model =
             ( model, Interop.startMovingContainerDown (ContainerId.toString id) )
 
         MoveContainerUp id ->
-            ( model |> track (LandingPage.moveContainerUp id model.landingPage)
+            ( model
+                |> trackEditor (\editor -> { editor | landingPage = LandingPage.moveContainerUp id model.editor.landingPage })
             , Cmd.none
             )
 
         MoveContainerDown id ->
-            ( model |> track (LandingPage.moveContainerDown id model.landingPage)
+            ( model |> trackEditor (\editor -> { editor | landingPage = LandingPage.moveContainerDown id model.editor.landingPage })
             , Cmd.none
             )
 
@@ -139,27 +160,29 @@ update msg model =
             ( { model | containerMenu = Nothing }, Cmd.none )
 
         RemoveContainer id ->
-            ( model |> track (LandingPage.removeContainer id model.landingPage)
+            ( model |> trackEditor (\editor -> { editor | landingPage = LandingPage.removeContainer id model.editor.landingPage })
             , Cmd.none
             )
 
         StartEditing blockId ->
-            ( { model | editingBlock = Just blockId }, Cmd.none )
+            ( model |> mapEditor (\editor -> { editor | editingBlock = Just blockId })
+            , Cmd.none
+            )
 
         StopEditing ->
-            ( { model | editingBlock = Nothing } |> track model.landingPage
+            ( model |> trackEditor (\editor -> { editor | editingBlock = Nothing })
             , Cmd.none
             )
 
         RemoveBlock blockId ->
-            ( model |> track (LandingPage.removeBlock blockId model.landingPage)
+            ( model |> trackEditor (\editor -> { editor | landingPage = LandingPage.removeBlock blockId model.editor.landingPage })
             , Cmd.none
             )
 
         SetBlockHtmlContent blockId html ->
             let
                 nextLandingPage =
-                    model.landingPage
+                    model.editor.landingPage
                         |> LandingPage.updateBlock
                             (\block ->
                                 if block.id == blockId then
@@ -174,12 +197,14 @@ update msg model =
                                     block
                             )
             in
-            ( { model | landingPage = nextLandingPage }, Cmd.none )
+            ( model |> mapEditor (\editor -> { editor | landingPage = nextLandingPage })
+            , Cmd.none
+            )
 
         SetBlockHtmlCode blockId html ->
             let
                 nextLandingPage =
-                    model.landingPage
+                    model.editor.landingPage
                         |> LandingPage.updateBlock
                             (\block ->
                                 if block.id == blockId then
@@ -194,12 +219,14 @@ update msg model =
                                     block
                             )
             in
-            ( { model | landingPage = nextLandingPage }, Cmd.none )
+            ( model |> mapEditor (\editor -> { editor | landingPage = nextLandingPage })
+            , Cmd.none
+            )
 
         SetBlockYoutubeUrl blockId url ->
             let
                 nextLandingPage =
-                    model.landingPage
+                    model.editor.landingPage
                         |> LandingPage.updateBlock
                             (\block ->
                                 if block.id == blockId then
@@ -214,12 +241,22 @@ update msg model =
                                     block
                             )
             in
-            ( { model | landingPage = nextLandingPage }, Cmd.none )
+            ( model |> mapEditor (\editor -> { editor | landingPage = nextLandingPage })
+            , Cmd.none
+            )
 
 
-track : LandingPage -> Model -> Model
-track nextLandingPage model =
-    { model | landingPage = nextLandingPage, editHistory = EditHistory.push model.editHistory model.landingPage }
+mapEditor : (Editor -> Editor) -> Model -> Model
+mapEditor fn model =
+    { model | editor = fn model.editor }
+
+
+trackEditor : (Editor -> Editor) -> Model -> Model
+trackEditor fn model =
+    { model
+        | editHistory = EditHistory.push model.editHistory model.editor
+        , editor = fn model.editor
+    }
 
 
 
@@ -252,7 +289,7 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div [ class "editor" ]
-        [ div [] (List.map (viewEditingContainer model.editingBlock model.containerMenu) (LandingPage.containers model.landingPage))
+        [ div [] (List.map (viewEditingContainer model.editor.editingBlock model.containerMenu) (LandingPage.containers model.editor.landingPage))
         ]
 
 

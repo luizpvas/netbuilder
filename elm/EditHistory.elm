@@ -3,18 +3,18 @@ module EditHistory exposing (EditHistory, empty, pop, push)
 import Data.LandingPage exposing (LandingPage)
 
 
-type alias EditHistory =
-    List LandingPage
+type alias EditHistory a =
+    List a
 
 
-empty : EditHistory
+empty : EditHistory a
 empty =
     []
 
 
 {-| We do some logic to prevent the same state being pushed twice.
 -}
-push : EditHistory -> LandingPage -> EditHistory
+push : EditHistory a -> a -> EditHistory a
 push history landingPage =
     case history of
         first :: rest ->
@@ -28,7 +28,7 @@ push history landingPage =
             [ landingPage ]
 
 
-pop : EditHistory -> ( Maybe LandingPage, EditHistory )
+pop : EditHistory a -> ( Maybe a, EditHistory a )
 pop history =
     case history of
         latest :: rest ->
