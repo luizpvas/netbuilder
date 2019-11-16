@@ -30,3 +30,8 @@ The second case is a bit more interesting.
 
 * I don't think it's a good idea to autofocus on the first field in mobile
   view. This happens in login and register.
+
+# TODO
+
+* Implement ctrl-z support for the CodeMirror editor.
+  It currently works ok with trix, and we need this for code mirror as well.

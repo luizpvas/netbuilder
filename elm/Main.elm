@@ -34,28 +34,30 @@ type alias Editor =
     }
 
 
+type Selection
+    = NothingSelected
+    | BlockSelected BlockId
+
+
 type alias Model =
     { editor : Editor
     , editHistory : EditHistory Editor
     , containerMenu : Maybe ContainerId
     , nextId : Int
+    , selection : Selection
     }
 
 
 init : Flags -> ( Model, Cmd Msg )
 init () =
     ( { editor =
-            { landingPage =
-                LandingPage.new
-                    |> LandingPage.changeContainerLayout (ContainerId.fromInt 1) "SingleColumn" 1
-                    |> .landingPage
-                    |> LandingPage.addPlaceholderAfter (ContainerId.fromInt 1) 2
-                    |> .landingPage
+            { landingPage = LandingPage.new
             , editingBlock = Nothing
             }
       , containerMenu = Nothing
       , nextId = 99
       , editHistory = EditHistory.empty
+      , selection = NothingSelected
       }
     , Cmd.none
     )
@@ -68,7 +70,9 @@ init () =
 type Msg
     = Ignored
     | Undo
+    | SelectBlock BlockId
     | AddContainerAfter ContainerId
+    | RemoveContainer ContainerId
     | ChangeContainerLayout ContainerId String
     | ChangeBlockLayout BlockId String
     | StartMovingContainerUp ContainerId
@@ -77,7 +81,6 @@ type Msg
     | MoveContainerDown ContainerId
     | OpenContainerMenu ContainerId
     | CloseContainerMenu
-    | RemoveContainer ContainerId
     | StartEditing BlockId
     | StopEditing
     | RemoveBlock BlockId
@@ -104,6 +107,9 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
+        SelectBlock blockId ->
+            ( { model | selection = BlockSelected blockId }, Cmd.none )
+
         AddContainerAfter containerId ->
             let
                 result =
@@ -111,6 +117,11 @@ update msg model =
             in
             ( { model | nextId = result.nextId }
                 |> trackEditor (\editor -> { editor | landingPage = result.landingPage })
+            , Cmd.none
+            )
+
+        RemoveContainer id ->
+            ( model |> trackEditor (\editor -> { editor | landingPage = LandingPage.removeContainer id model.editor.landingPage })
             , Cmd.none
             )
 
@@ -158,11 +169,6 @@ update msg model =
 
         CloseContainerMenu ->
             ( { model | containerMenu = Nothing }, Cmd.none )
-
-        RemoveContainer id ->
-            ( model |> trackEditor (\editor -> { editor | landingPage = LandingPage.removeContainer id model.editor.landingPage })
-            , Cmd.none
-            )
 
         StartEditing blockId ->
             ( model |> mapEditor (\editor -> { editor | editingBlock = Just blockId })
@@ -279,6 +285,7 @@ subscriptions model =
         , Interop.movingDownFinished (ContainerId.fromInt >> MoveContainerDown)
         , Interop.movingUpFinished (ContainerId.fromInt >> MoveContainerUp)
         , Interop.ctrlZPressed (\_ -> Undo)
+        , Browser.Events.onClick (Decode.succeed Ignored)
         ]
 
 
@@ -289,101 +296,101 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
     div [ class "editor" ]
-        [ div [] (List.map (viewEditingContainer model.editor.editingBlock model.containerMenu) (LandingPage.containers model.editor.landingPage))
+        [ div [] (List.map (viewEditingContainer model) (LandingPage.containers model.editor.landingPage))
         ]
 
 
-viewEditingContainer : Maybe BlockId -> Maybe ContainerId -> LandingPage.Container -> Html Msg
-viewEditingContainer editing containerMenu container =
-    case editing of
+viewEditingContainer : Model -> LandingPage.Container -> Html Msg
+viewEditingContainer model container =
+    case model.editor.editingBlock of
         Just blockId ->
             case LandingPage.findBlockInContainer container blockId of
                 Just block ->
                     viewBlockEditor block
 
                 Nothing ->
-                    viewContainer container containerMenu
+                    viewContainer model container
 
         Nothing ->
-            viewContainer container containerMenu
+            viewContainer model container
 
 
-viewContainer : LandingPage.Container -> Maybe ContainerId -> Html Msg
-viewContainer container containerMenu =
+viewContainer : Model -> LandingPage.Container -> Html Msg
+viewContainer model container =
     case container.layout of
         LandingPage.ContainerPlaceholder ->
             viewContainerColumns container
-                containerMenu
+                model
                 [ ( "placeholder", viewContainerPlaceholder container.id )
                 ]
 
         LandingPage.SingleColumn block ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString block.id, div [ class "column-100" ] [ viewBlock block ] )
+                model
+                [ ( BlockId.toString block.id, div [ class "column-100" ] [ viewBlock model block ] )
                 ]
 
         LandingPage.TwoColumns50x50 left right ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left.id, div [ class "column-50" ] [ viewBlock left ] )
-                , ( BlockId.toString right.id, div [ class "column-50" ] [ viewBlock right ] )
+                model
+                [ ( BlockId.toString left.id, div [ class "column-50" ] [ viewBlock model left ] )
+                , ( BlockId.toString right.id, div [ class "column-50" ] [ viewBlock model right ] )
                 ]
 
         LandingPage.TwoColumns30x70 left right ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left.id, div [ class "column-30" ] [ viewBlock left ] )
-                , ( BlockId.toString right.id, div [ class "column-70" ] [ viewBlock right ] )
+                model
+                [ ( BlockId.toString left.id, div [ class "column-30" ] [ viewBlock model left ] )
+                , ( BlockId.toString right.id, div [ class "column-70" ] [ viewBlock model right ] )
                 ]
 
         LandingPage.TwoColumns70x30 left right ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left.id, div [ class "column-70" ] [ viewBlock left ] )
-                , ( BlockId.toString right.id, div [ class "column-30" ] [ viewBlock right ] )
+                model
+                [ ( BlockId.toString left.id, div [ class "column-70" ] [ viewBlock model left ] )
+                , ( BlockId.toString right.id, div [ class "column-30" ] [ viewBlock model right ] )
                 ]
 
         LandingPage.ThreeColumns33x33x33 left center right ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left.id, div [ class "column-33" ] [ viewBlock left ] )
-                , ( BlockId.toString center.id, div [ class "column-33" ] [ viewBlock center ] )
-                , ( BlockId.toString right.id, div [ class "column-33" ] [ viewBlock right ] )
+                model
+                [ ( BlockId.toString left.id, div [ class "column-33" ] [ viewBlock model left ] )
+                , ( BlockId.toString center.id, div [ class "column-33" ] [ viewBlock model center ] )
+                , ( BlockId.toString right.id, div [ class "column-33" ] [ viewBlock model right ] )
                 ]
 
         LandingPage.ThreeColumns25x25x50 left center right ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left.id, div [ class "column-25" ] [ viewBlock left ] )
-                , ( BlockId.toString center.id, div [ class "column-25" ] [ viewBlock center ] )
-                , ( BlockId.toString right.id, div [ class "column-50" ] [ viewBlock right ] )
+                model
+                [ ( BlockId.toString left.id, div [ class "column-25" ] [ viewBlock model left ] )
+                , ( BlockId.toString center.id, div [ class "column-25" ] [ viewBlock model center ] )
+                , ( BlockId.toString right.id, div [ class "column-50" ] [ viewBlock model right ] )
                 ]
 
         LandingPage.ThreeColumns50x25x25 left center right ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left.id, div [ class "column-50" ] [ viewBlock left ] )
-                , ( BlockId.toString center.id, div [ class "column-25" ] [ viewBlock center ] )
-                , ( BlockId.toString right.id, div [ class "column-25" ] [ viewBlock right ] )
+                model
+                [ ( BlockId.toString left.id, div [ class "column-50" ] [ viewBlock model left ] )
+                , ( BlockId.toString center.id, div [ class "column-25" ] [ viewBlock model center ] )
+                , ( BlockId.toString right.id, div [ class "column-25" ] [ viewBlock model right ] )
                 ]
 
         LandingPage.FourColumns25x25x25x25 left1 left2 right1 right2 ->
             viewContainerColumns container
-                containerMenu
-                [ ( BlockId.toString left1.id, div [ class "column-25" ] [ viewBlock left1 ] )
-                , ( BlockId.toString left2.id, div [ class "column-25" ] [ viewBlock left2 ] )
-                , ( BlockId.toString right1.id, div [ class "column-25" ] [ viewBlock right1 ] )
-                , ( BlockId.toString right2.id, div [ class "column-25" ] [ viewBlock right2 ] )
+                model
+                [ ( BlockId.toString left1.id, div [ class "column-25" ] [ viewBlock model left1 ] )
+                , ( BlockId.toString left2.id, div [ class "column-25" ] [ viewBlock model left2 ] )
+                , ( BlockId.toString right1.id, div [ class "column-25" ] [ viewBlock model right1 ] )
+                , ( BlockId.toString right2.id, div [ class "column-25" ] [ viewBlock model right2 ] )
                 ]
 
 
-viewContainerColumns : LandingPage.Container -> Maybe ContainerId -> List ( String, Html Msg ) -> Html Msg
-viewContainerColumns container containerMenu columns =
+viewContainerColumns : LandingPage.Container -> Model -> List ( String, Html Msg ) -> Html Msg
+viewContainerColumns container model columns =
     div []
         [ Html.Keyed.node "div"
             [ class "container", id (ContainerId.toString container.id) ]
-            (( "container-menu", viewContainerMenu container containerMenu ) :: columns)
+            (( "container-menu", viewContainerMenu container model.containerMenu ) :: columns)
         , div [ onClick (AddContainerAfter container.id) ] [ text "Add" ]
         ]
 
@@ -494,52 +501,34 @@ viewBlockEditor block =
             viewBlockPlaceholder block.id
 
         LandingPage.HtmlCode html ->
-            div [ class "block-editor-panel" ]
-                [ div [ class "block-editor-panel-header" ]
-                    [ text "Editor de HTML"
-                    , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
-                    ]
-                , div [ class "block-editor-panel-body" ]
-                    [ CodeMirror.editor html (SetBlockHtmlCode block.id)
-                    ]
+            viewBlockPanelEditor "Editor de HTML"
+                [ CodeMirror.editor html (SetBlockHtmlCode block.id)
                 ]
 
         LandingPage.HtmlContent html ->
-            div [ class "block-editor-panel" ]
-                [ div [ class "block-editor-panel-header" ]
-                    [ text "Editor de texto"
-                    , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
-                    ]
-                , div [ class "block-editor-panel-body" ]
-                    [ Trix.editor html (SetBlockHtmlContent block.id)
-                    ]
+            viewBlockPanelEditor "Editor de texto"
+                [ Trix.editor html (SetBlockHtmlContent block.id)
                 ]
 
         LandingPage.YoutubeVideo url ->
-            div [ class "block-editor-panel" ]
-                [ div [ class "block-editor-panel-header" ]
-                    [ text "Vídeo do Youtube"
-                    , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
+            viewBlockPanelEditor "Vídeo do Youtube"
+                [ label []
+                    [ text "Copie e cole a URL do vídeo:"
+                    , input
+                        [ class "netbuilder-input"
+                        , onInput (SetBlockYoutubeUrl block.id)
+                        , placeholder "https://www.youtube.com/watch?v=..."
+                        , value url
+                        ]
+                        []
                     ]
-                , div [ class "block-editor-panel-body" ]
-                    [ label []
-                        [ text "Copie e cole a URL do vídeo:"
-                        , input
-                            [ class "netbuilder-input"
-                            , onInput (SetBlockYoutubeUrl block.id)
-                            , placeholder "https://www.youtube.com/watch?v=..."
-                            , value url
-                            ]
-                            []
-                        ]
-                    , div [ class "youtube-preview-image-editor-container" ]
-                        [ case Youtube.thumbnailUrl url of
-                            Just thumbnailUrl ->
-                                img [ class "youtube-preview-image", src thumbnailUrl ] []
+                , div [ class "youtube-preview-image-editor-container" ]
+                    [ case Youtube.thumbnailUrl url of
+                        Just thumbnailUrl ->
+                            img [ class "youtube-preview-image", src thumbnailUrl ] []
 
-                            Nothing ->
-                                div [] [ text "Invalid URL" ]
-                        ]
+                        Nothing ->
+                            div [] [ text "Invalid URL" ]
                     ]
                 ]
 
@@ -550,43 +539,84 @@ viewBlockEditor block =
             div [] [ text "Call to action" ]
 
 
-viewBlock : LandingPage.Block -> Html Msg
-viewBlock block =
+viewBlockPanelEditor : String -> List (Html Msg) -> Html Msg
+viewBlockPanelEditor title children =
+    div [ class "block-editor-panel" ]
+        [ div [ class "block-editor-panel-header" ]
+            [ text title
+            , div [ class "block-editor-panel-header-right" ]
+                [ button [ class "netbuilder-button-link", onClick StopEditing ] [ text "Cancelar" ]
+                , button [ class "netbuilder-button", onClick StopEditing ] [ text "Salvar" ]
+                ]
+            ]
+        , div [ class "block-editor-panel-body" ] children
+        ]
+
+
+viewBlock : Model -> LandingPage.Block -> Html Msg
+viewBlock model block =
     case block.layout of
         LandingPage.BlockPlaceholder ->
             viewBlockPlaceholder block.id
 
         LandingPage.HtmlCode html ->
-            div [ class "block-content" ]
-                [ viewBlockHoverOptions block.id
-                , Html.node "netbuilder-html-content" [ attribute "data-html" html ] []
+            viewBlockContent model
+                block
+                [ Html.node "netbuilder-html-content" [ attribute "data-html" html ] []
                 ]
 
         LandingPage.HtmlContent html ->
-            div [ class "block-content" ]
-                [ viewBlockHoverOptions block.id
-                , Html.node "netbuilder-html-content" [ attribute "data-html" html ] []
+            viewBlockContent model
+                block
+                [ Html.node "netbuilder-html-content" [ attribute "data-html" html ] []
                 ]
 
         LandingPage.YoutubeVideo url ->
             case Youtube.thumbnailUrl url of
                 Just thumbnailUrl ->
-                    div [ class "block-content" ]
-                        [ viewBlockHoverOptions block.id
-                        , img [ src thumbnailUrl, class "youtube-preview-image" ] []
+                    viewBlockContent model
+                        block
+                        [ img [ src thumbnailUrl, class "youtube-preview-image" ] []
                         ]
 
                 Nothing ->
-                    div [ class "block-content" ]
-                        [ viewBlockHoverOptions block.id
-                        , text "URL Inválida."
+                    viewBlockContent model
+                        block
+                        [ text "URL Inválida"
                         ]
 
         LandingPage.Image url ->
-            div [ class "block-content" ] [ text "Image" ]
+            viewBlockContent model
+                block
+                [ text "Image"
+                ]
 
         LandingPage.CallToAction url ->
-            div [ class "block-content" ] [ text "Call to action" ]
+            viewBlockContent model
+                block
+                [ text "Call to action"
+                ]
+
+
+viewBlockContent : Model -> LandingPage.Block -> List (Html Msg) -> Html Msg
+viewBlockContent model block children =
+    let
+        className =
+            case model.selection of
+                NothingSelected ->
+                    "block-content"
+
+                BlockSelected blockId ->
+                    if blockId == block.id then
+                        "block-content selected"
+
+                    else
+                        "block-content"
+    in
+    div [ class className, id (BlockId.toString block.id), onClick (SelectBlock block.id) ]
+        [ viewBlockHoverOptions block.id
+        , div [] children
+        ]
 
 
 viewBlockHoverOptions : BlockId -> Html Msg
